@@ -688,13 +688,33 @@
 
 	LAZYINITLIST(fillers)
 
+	// Direction the filler tile(s) extend from src's loc matches the
+	// direction the door visually expands via bound_x/bound_y:
+	// WEST → expands west (bound_x negative) → fillers go WEST
+	// EAST → expands east (bound_x = 0)      → fillers go EAST
+	// NORTH → expands north                   → fillers go NORTH
+	// SOUTH → expands south                   → fillers go SOUTH
+	// The original turn(dir, 90) was perpendicular (WEST→NORTH, etc.)
+	// which happened to work while doors were always freshly placed and
+	// pixel_x/bound_x visually masked the wrong loc. When loading from
+	// a .dmm where .loc is fixed on disk, the wrong direction caused
+	// the door to visually shift by one tile after Initialize().
+	var/filler_dir = dir
+
 	var/obj/last_filler = src
 	for(var/i in 1 to width - 1)
-		var/obj/airlock_filler_object/filler
+		var/turf/target_turf = get_step(last_filler, filler_dir)
+		// Clear any map-loaded filler already sitting on this tile.
+		// The `fillers` list is always empty at init time (it's a runtime
+		// list, not saved to .dmm), so QDEL_LIST_CONTENTS(fillers) above
+		// never catches a filler that was saved as its own map entry.
+		for(var/obj/airlock_filler_object/stray in target_turf)
+			qdel(stray)
 
+		var/obj/airlock_filler_object/filler
 		filler = new(src)
 		filler.pair_airlock(src)
-		filler.loc = get_step(last_filler, turn(dir, 90))
+		filler.loc = target_turf
 		filler.density = density
 		filler.set_opacity(opacity)
 
